@@ -1,0 +1,185 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum UserRole {
+  ADMIN
+  RECRUITER
+  CANDIDATE
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String?                 // hashed password; 
+  role          UserRole  @default(CANDIDATE)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+
+  
+  applications Application[] @relation("CandidateApplications")       // CANDIDATE Applications 
+
+  createdApplications Application[] @relation("CreatedByRecruiter")   // RECRUITER Applications for selecting 
+
+  decidedApplications Application[] @relation("DecidedByRecruiter")   // Applications made the final hire/reject decision
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles Role[]
+}
+
+model Role {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  questionCount Int      @default(5)
+  clientId      String
+  isOpen        Boolean  @default(true)             // recruiter can close a role once filled
+  createdAt     DateTime @default(now())
+
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  applications Application[]
+}
+
+enum ApplicationStatus {
+  SUBMITTED                             // candidate just applied
+  SHORTLISTED                           // recruiter reviewed resume, wants to interview
+  REJECTED                              // recruiter failed, no interview
+  INTERVIEW_SCHEDULED                   // AI interview has been set up
+  INTERVIEW_COMPLETED                   // candidate finished the AI interview
+  HIRED                                 // recruiter made final positive decision
+  NOT_HIRED                             // recruiter made final negative decision
+}
+
+model Application {
+  id          String            @id @default(cuid())
+  candidateId String
+  roleId      String
+  resumeUrl   String                    // link to the uploaded resume file 
+  resumeScore Int?                      // AI-generated score from parsing the resume, filled in after submission
+  status      ApplicationStatus @default(SUBMITTED)
+
+  createdByUserId String?
+  decidedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidate User  @relation("CandidateApplications", fields: [candidateId], references: [id], onDelete: Cascade)
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("CreatedByRecruiter", fields: [createdByUserId], references: [id])
+  decidedBy User? @relation("DecidedByRecruiter", fields: [decidedByUserId], references: [id])
+
+  interview Interview?
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Interview {
+  id            String          @id @default(cuid())
+  applicationId String          @unique
+  status        InterviewStatus @default(SCHEDULED)
+  scheduledAt   DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  overallFeedback       String? @db.Text
+  overallRecommendation String?
+
+  createdAt   DateTime @default(now())
+  publicToken String   @unique @default(cuid())
+
+  application Application         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questions   InterviewQuestion[]
+  answers     Answer[]
+}
+
+model Answer {
+  id          String   @id @default(cuid())
+  interviewId String
+  questionId  String
+  answerText  String   @db.Text
+  inputMethod String   @default("typed")   // "voice" | "typed"
+  createdAt   DateTime @default(now())
+
+  interview Interview         @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  question  InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, questionId])
+}
+
+model InterviewQuestion {
+  id          String @id @default(cuid())
+  interviewId String
+  order       Int                         // question 1, 2, 3... controls the sequence
+
+  questionText String @db.Text
+
+  candidateAnswer String? @db.Text          // transcribed from speech
+  aiScore         Int?                       // AI's score for this specific answer
+  aiNotes         String? @db.Text            // AI's internal reasoning/notes on this answer
+
+  visibleToCandidate Boolean @default(true)       // hide from candidate if it's a trick/internal-only question
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  answers Answer[]
+}
