@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Digital Heroes — AI Interview Platform
 
-## Getting Started
+An end-to-end recruiting platform where recruiters post roles, candidates apply and complete AI-generated interviews, and AI-assisted feedback helps recruiters make faster, more consistent hiring decisions.
 
-First, run the development server:
+**Live demo:** https://digital-heroes-project-ten.vercel.app
+
+---
+
+## Overview
+
+The platform supports two roles:
+
+- **Recruiters** create clients, post open roles, review applications, shortlist candidates, generate AI interview questions, review AI-generated feedback, and approve or reject applicants.
+- **Candidates** browse open roles, apply with a resume upload, complete an AI-generated interview, and track their application status.
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router, TypeScript) |
+| Database | PostgreSQL via Supabase |
+| ORM | Prisma 7 (with `@prisma/adapter-pg` driver adapter) |
+| Auth | Auth.js (NextAuth) with credentials + bcrypt |
+| AI | Groq (question generation + feedback generation) |
+| File storage | Vercel Blob (resume uploads) |
+| Styling | Tailwind CSS |
+| Hosting | Vercel |
+
+## Core Flow
+
+1. Recruiter registers, creates a Client, and posts a Role under that Client.
+2. Candidate registers, browses open Roles, and applies with a PDF resume.
+3. Recruiter reviews applications and shortlists candidates.
+4. Recruiter generates AI interview questions for the shortlisted candidate.
+5. Candidate completes the interview.
+6. AI generates feedback based on the candidate's answers.
+7. Recruiter reviews the feedback and approves or rejects the application.
+
+## Getting Started (Local Development)
+
+### Prerequisites
+
+- Node.js 18+
+- A PostgreSQL database (e.g. a free [Supabase](https://supabase.com) project)
+- A [Groq](https://console.groq.com) API key
+- A [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) read/write token
+
+### Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/10AP03/Digital-Heroes-Project
+cd Digital-Heroes-Project/my-project
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy `.env.example` to `.env` and fill in real values (see [Environment Variables](#environment-variables) below).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npx prisma migrate deploy
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app runs at `http://localhost:3000`.
 
-## Learn More
+## Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+See `.env.example` for the full list. Summary:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Pooled Postgres connection string (used at runtime) |
+| `DIRECT_URL` | Direct (non-pooled) Postgres connection string (used for migrations) |
+| `AUTH_SECRET` | Auth.js session encryption secret |
+| `GROQ_API_KEY` | Groq API key for question/feedback generation |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob token for resume uploads |
+| `NEXTAUTH_URL` | Base URL of the deployed app (used by Auth.js) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+This project is deployed on Vercel with GitHub integration — every push to `master` triggers an automatic deployment.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Key deployment notes for anyone redeploying or forking this project:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Prisma 7** requires connection URLs to live in `prisma.config.ts`, not in `schema.prisma`'s `datasource` block.
+- The `build` script must run `prisma generate` before `next build`, since the generated client is not committed to Git.
+- Resume files are stored via **Vercel Blob**, not local disk — local filesystem writes do not persist on Vercel's serverless runtime.
+- Authentication route protection is implemented via `src/proxy.ts` (Next.js 16's replacement for the deprecated `middleware.ts` convention).
+
+## Project Structure
+
+```
+src/
+  app/                  # Next.js App Router pages and layouts
+    auth.ts             # Full Auth.js config (Node runtime)
+    auth.config.ts      # Edge-safe Auth.js config (used by proxy.ts)
+  lib/
+    prisma.ts           # Shared Prisma client (with adapter-pg)
+    validators.ts       # Zod schemas
+  server/
+    actions/            # Server Actions (roles, applications, decisions, etc.)
+  proxy.ts               # Route protection (auth gate)
+prisma/
+  schema.prisma
+  migrations/
+prisma.config.ts        # Prisma 7 datasource + migration config
+```
+
+## Known Limitations
+
+- Route protection currently checks that a user is logged in, but does not yet enforce role-based access at the routing layer (e.g. a candidate account manually navigating to a recruiter URL is not blocked by `proxy.ts` — role checks are enforced within individual Server Actions).
+- Voice-based interview answers are not implemented; candidates answer via typed text.
+
+## License
+
+See `LICENSE`.
