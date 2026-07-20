@@ -24,6 +24,7 @@ export async function createRole(formData: FormData): Promise<void> {
 
   await prisma.role.create({ data: parsed.data })
   revalidatePath(`/recruiter/clients/${parsed.data.clientId}`)
+  revalidatePath('/candidate/roles')
 }
 
 export async function getOpenRoles() {
@@ -48,4 +49,5 @@ export async function toggleRoleOpen(roleId: string, isOpen: boolean) {
   }
   await prisma.role.update({ where: { id: roleId }, data: { isOpen } })
   revalidatePath('/recruiter')
+  revalidatePath('/candidate/roles')
 }
