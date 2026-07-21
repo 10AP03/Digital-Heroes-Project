@@ -25,7 +25,7 @@ async function RecruiterDashboard() {
       prisma.interview.count(),
       prisma.application.findMany({
         take: 5,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' },{ id: 'desc' }],
         include: { role: true },
       }),
     ])

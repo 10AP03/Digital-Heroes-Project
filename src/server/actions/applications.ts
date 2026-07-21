@@ -38,6 +38,8 @@ export async function applyToRole(formData: FormData): Promise<void> {
   })
 
   revalidatePath('/candidate/applications')
+  revalidatePath('/dashboard')
+  revalidatePath('/recruiter/applications')
 }
 
 export async function getApplicationsForRecruiter() {
